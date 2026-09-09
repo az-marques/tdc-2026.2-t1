@@ -4,14 +4,13 @@ from typing import List
 from symbols import *
 
 #recebendo um arquivo plaintext definindo quintuplas de uma máquina de turing, interpreta o arquvio e retorna elas como uma lista de objetos Quintuple
-#considerando a entrada A T -> T' σ A'
+#considerando a entrada (A,T)=(A',T',σ)
 def parse(filepath) -> List[Quintuple]:
     quintuples = []
     
     with open(filepath, 'r', encoding='utf-8') as file:
         for line_num, line in enumerate(file, start=1):
             line = line.strip()
-            print(f"[{line_num}] {line}")
             
             if not line or not line.startswith("("):
                 continue
