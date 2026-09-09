@@ -1,3 +1,4 @@
+import re
 from quintuple import Quintuple
 from typing import List
 from symbols import *
@@ -10,22 +11,19 @@ def parse(filepath) -> List[Quintuple]:
     with open(filepath, 'r', encoding='utf-8') as file:
         for line_num, line in enumerate(file, start=1):
             line = line.strip()
+            print(f"[{line_num}] {line}")
             
-            if not line or line.startswith("#"):
+            if not line or not line.startswith("("):
                 continue
             
-            parts = line.split()
-            if len(parts) != 6 or parts[2] != "->":
-                raise ValueError(f"problema de formatacao com a linha {line_num}: {line}\n")
-            
-            A, T, arrow, T_line, sigma, A_line = parts
+            parts = re.split(r"[(,)=]",line)
             quintuples.append(
                 Quintuple(
-                    input_state=A,
-                    input_symbol=T,
-                    output_symbol=T_line,
-                    shift_direction=Shift(sigma),
-                    output_state=A_line,
+                    input_state=parts[1],
+                    input_symbol=parts[2],
+                    output_symbol=parts[6],
+                    shift_direction=Shift(parts[7]),
+                    output_state=parts[5],
                 )
             )
         
