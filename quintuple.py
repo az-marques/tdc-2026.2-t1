@@ -28,7 +28,7 @@ class Quintuple:
     #cria novos estados de controle (A'' no exemplo)
     def convert_to_quadruples(self) -> List[Quadruple]:
         aux_state = f"{self.input_state}_aux{next(self.counter)}"
-
+ 
         #A[T] -> [T'] A''        
         quadruple_1 = Quadruple(
             input_state=self.input_state,
