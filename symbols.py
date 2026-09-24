@@ -8,3 +8,6 @@ class Shift(StrEnum):
 
 #constante que guarda o símbolo que significa que uma fita em uma quadrupla não é lida
 DO_NOT_READ = "/"
+
+#constante que guarda o símbolo que representa um espaço vazio em uma fita
+BLANK = "B"

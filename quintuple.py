@@ -23,27 +23,4 @@ class Quintuple:
 
     def __str__(self):
         return f"{self.input_state} {self.input_symbol} -> {self.output_symbol} {self.shift_direction} {self.output_state}"
-
-    #converte uma quintuple (ex: A T -> T' σ A') em uma lista de quadruples (ex: A T -> T' A'' e  A''[/,/,...] -> σ A'
-    #cria novos estados de controle (A'' no exemplo)
-    def convert_to_quadruples(self) -> List[Quadruple]:
-        aux_state = f"{self.input_state}_aux{next(self.counter)}"
- 
-        #A[T] -> [T'] A''        
-        quadruple_1 = Quadruple(
-            input_state=self.input_state,
-            input_tapes=[self.input_symbol],
-            output_tapes=[self.output_symbol],
-            output_state=aux_state,
-        )
-        
-        #A''[/] -> [σ] A'        
-        quadruple_2 = Quadruple(
-            input_state=aux_state,
-            input_tapes=[DO_NOT_READ],
-            output_tapes=[self.shift_direction],
-            output_state=self.output_state,
-        )
-        
-        return [quadruple_1, quadruple_2]    
     

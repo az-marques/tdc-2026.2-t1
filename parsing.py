@@ -3,15 +3,15 @@ from quintuple import Quintuple
 from typing import List
 from symbols import *
 
-#recebendo um arquivo plaintext definindo quintuplas de uma máquina de turing, interpreta o arquvio e retorna elas como uma lista de objetos Quintuple
-#considerando a entrada (A,T)=(A',T',σ)
-def parse(filepath) -> List[Quintuple]:
+#recebendo um arquivo plaintext definindo uma máquina de turing, interpreta o arquvio e retorna um dicionário com as informações da máquina
+def parse(filepath) -> dict:
     quintuples = []
     
     with open(filepath, 'r', encoding='utf-8') as file:
         for line_num, line in enumerate(file, start=1):
             line = line.strip()
             
+            #TODO fazer o parse retornar as outras informações
             if not line or not line.startswith("("):
                 continue
             
@@ -26,4 +26,12 @@ def parse(filepath) -> List[Quintuple]:
                 )
             )
         
-        return quintuples
+        #TODO fazer o parse retornar as outras informações
+        parsed = {
+            "quintuples" : quintuples,
+            "initial_state" : None,
+            "input_string" : None,
+            "accept_state" : None
+        }
+
+        return parsed
