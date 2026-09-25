@@ -2,6 +2,7 @@ from collections import defaultdict
 from typing import Dict, List, Optional, Tuple
  
 from symbols import Shift, DO_NOT_READ, BLANK
+from symbols import RED, GREEN, YELLOW, CYAN, RESET
 from quadruple import Quadruple
 from quintuple import Quintuple
 
@@ -46,12 +47,12 @@ class Tape:
         if right_of_head == "":
             right_of_head += BLANK
         
-        return left_of_head + "[H]" + right_of_head
+        return left_of_head + YELLOW + "[H]" + RESET + right_of_head
 
 #máquina de turing reversível que simula uma máquina de turing clássica
 #tem três fitas (main, history, e copy) e opera em três estágios: A (computação), B(cópia), C(restauração), conforme o artigo
 class ReversibleMachine:
-    def __init__(self, quintuples : List[Quintuple], initial_state : str, input_string : str):
+    def __init__(self, quintuples : List[Quintuple], initial_state : str, accept_state : str, input_string : str):
         self.main_tape = Tape(content=input_string)
         self.history_tape = Tape()
         self.copy_tape = Tape()
@@ -59,6 +60,11 @@ class ReversibleMachine:
         self.quadruples = {}
 
         self.state = f"A_{initial_state}_0"
+        
+        #algumas informacoes de controle
+        self.accept_state = accept_state
+        self.halted   = False
+        self.rejected = False
 
         self.__stage_a_quadruples(quintuples)
 
@@ -78,11 +84,11 @@ class ReversibleMachine:
 
     #returna uma string representando o estado atual da máquina e os conteúdos e posição da head de cada fita
     def print_current_configuration(self) -> str:
-        current_state_str = f"Estado atual: {self.state}\n"
+        current_state_str = f"{CYAN}Estado atual:{RESET} {self.state}\n"
 
         tapes_str = f"Fita Principal:\n{self.main_tape.contents()}\n"
         tapes_str += f"Fita de História:\n{self.history_tape.contents()}\n"
-        tapes_str += f"Fita de Cópia:\n{self.copy_tape.contents()}\n"
+        tapes_str += f"Fita de Cópia:\n{self.copy_tape.contents()}"
 
         return current_state_str + tapes_str
 
@@ -123,23 +129,46 @@ class ReversibleMachine:
 
             aux_state_id +=1
     
+    
     def reject(self): #TODO implementar
-        print("REJEITOU!!!")
-        exit()
-        return
+        print(f"{RED}REJEITOU: nenhuma transição definida para o estado '{self.state}' "
+          f"lendo (main={self.main_tape.read()}, history={self.history_tape.read()}, "
+          f"copy={self.copy_tape.read()}){RESET}")
+        
+        self.halted = True
+        self.rejected = True
+
+
+    def __is_stage_a_accepting(self) -> bool:
+       return self.state == f"A_{self.accept_state}_0" 
+
 
     def step(self):
+        if self.halted:
+            print(f"{GREEN}maquina parada{RESET}\n")
+            return
+        
+        if self.__is_stage_a_accepting():
+            self.halted = True
+            print(f"{CYAN}={RESET}" * 50)
+            print(f"{GREEN}estagio a concluido{RESET}! estado de aceitacao = {self.accept_state}")
+            print(self.print_current_configuration())
+            print(f"{CYAN}={RESET}" * 50)
+            
+            return
+            
         quad = self.__find_transition()
         
         if quad == None:
             self.reject()
             return
 
-        print(f"Aplicado {quad}")
+        print(f"{GREEN}Aplicado {quad}{RESET}")
 
         self.__apply_transition(quad)
 
         print(self.print_current_configuration())
+        
 
     #encontra a quadrupla cujo padrao de leitura bate com o estado e fitas atuais
     def __find_transition(self) -> Optional[Quadruple]:

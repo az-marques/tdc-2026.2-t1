@@ -3,19 +3,24 @@ from quintuple import Quintuple
 from quadruple import Quadruple
 from machine import ReversibleMachine
 from parsing import parse
+from symbols import RED, GREEN, RESET
 
 FILE = "_input_turing_machine.txt"
 
 
 parsed_info = parse(FILE)
 
-#TODO fazer o parse retornar as outras informações
-rm = ReversibleMachine(quintuples=parsed_info["quintuples"], initial_state="1", input_string="0011")
+rm = ReversibleMachine(
+    quintuples=parsed_info["quintuples"],
+    initial_state=parsed_info["initial_state"],
+    accept_state=parsed_info["accept_state"],
+    input_string=parsed_info["input_string"],
+)
 
 print(rm.print_current_configuration())
 
 while(True):
-    foo = input("enter -> próximo step | x -> sair: ")
+    foo = input(f"\n[{GREEN}enter{RESET}] -> próximo step | [{RED}x{RESET}] -> sair: ")
 
     print()
     rm.step()
