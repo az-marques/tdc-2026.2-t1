@@ -65,6 +65,7 @@ class ReversibleMachine:
         self.accept_state = accept_state
         self.halted   = False
         self.rejected = False
+        self.stage = "A"
 
         self.__stage_a_quadruples(quintuples)
 
@@ -130,12 +131,11 @@ class ReversibleMachine:
             aux_state_id +=1
     
     
-    def reject(self): #TODO implementar
-        print(f"{RED}REJEITOU: nenhuma transição definida para o estado '{self.state}' "
-          f"lendo (main={self.main_tape.read()}, history={self.history_tape.read()}, "
-          f"copy={self.copy_tape.read()}){RESET}")
-        
-        self.halted = True
+    def reject(self):
+        print(f"{RED}REJEITOU no estágio {self.stage}: nenhuma transição definida para o "
+                f"estado '{self.state}' lendo (main={self.main_tape.read()}, "
+                f"history={self.history_tape.read()}, copy={self.copy_tape.read()}){RESET}")
+        self.halted   = True
         self.rejected = True
 
 
@@ -143,18 +143,20 @@ class ReversibleMachine:
        return self.state == f"A_{self.accept_state}_0" 
 
 
+    def __transition_to_stage_b(self):
+        self.stage = "B"
+        self.state = f"B_{self.accept_state}_0"
+        print(f"{GREEN}estagio A concluido. mudando para o estagio B. estado inicial: {self.state}){RESET}")
+        print(self.print_current_configuration())
+        
+
     def step(self):
         if self.halted:
-            print(f"{GREEN}maquina parada{RESET}\n")
+            print(f"{YELLOW}maquina parada{RESET}\n")
             return
         
-        if self.__is_stage_a_accepting():
-            self.halted = True
-            print(f"{CYAN}={RESET}" * 50)
-            print(f"{GREEN}estagio a concluido{RESET}! estado de aceitacao = {self.accept_state}")
-            print(self.print_current_configuration())
-            print(f"{CYAN}={RESET}" * 50)
-            
+        if self.stage == "A" and self.__is_stage_a_accepting():
+            self.__transition_to_stage_b()
             return
             
         quad = self.__find_transition()
