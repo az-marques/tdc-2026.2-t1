@@ -1,23 +1,32 @@
 from collections import defaultdict
 from typing import Dict, List, Optional, Tuple
  
-from symbols import Shift, DO_NOT_READ, BLANK
-from symbols import RED, GREEN, YELLOW, CYAN, RESET
+from symbols import *
+
 from quadruple import Quadruple
 from quintuple import Quintuple
 
 class Tape:
+    #dizer se a cabeca da fita esta na borda
+    @property
+    def at_boundary(self) -> bool:
+        return self.head == 0
+    
+    
     def __init__(self, content: str = ""):
         self.cells = defaultdict(lambda: BLANK)
         for i, ch in enumerate(content):
             self.cells[i] = ch
         self.head = 0 
 
+
     def read(self) -> str:
         return self.cells[self.head]
 
+
     def write(self, symbol: str):
         self.cells[self.head] = symbol
+
 
     def move(self, shift: Shift):
         if shift == Shift.RIGHT:
@@ -26,12 +35,14 @@ class Tape:
             self.head -= 1
         #se o shift for null -> cabeça fica parada
 
+
     def span(self) -> Tuple[int, int]:
         #menor e maior indice com simbolo nao branco
         index = [i for i, v in self.cells.items() if v != BLANK]
         if not index:
             return 0, -1
         return min(index), max(index)
+
 
     #retorna uma representação em string dos conteúdos e posição da cabeça da tape
     #ex se head=2 e cells = "0011" -> "0|0|[H]1|1"
@@ -49,10 +60,17 @@ class Tape:
         
         return left_of_head + YELLOW + "[H]" + RESET + right_of_head
 
+
 #máquina de turing reversível que simula uma máquina de turing clássica
 #tem três fitas (main, history, e copy) e opera em três estágios: A (computação), B(cópia), C(restauração), conforme o artigo
 class ReversibleMachine:
-    def __init__(self, quintuples : List[Quintuple], initial_state : str, accept_state : str, input_string : str):
+    def __init__(self, quintuples : List[Quintuple], initial_state : str, accept_state : str, input_string : str, alphabet_tape : List[str]):
+
+        #algumas informacoes de controle
+        self.initial_state = initial_state
+        self.accept_state = accept_state
+        self.alphabet_tape = list(alphabet_tape)
+        
         self.main_tape = Tape(content=input_string)
         self.history_tape = Tape()
         self.copy_tape = Tape()
@@ -61,13 +79,14 @@ class ReversibleMachine:
 
         self.state = f"A_{initial_state}_0"
         
-        #algumas informacoes de controle
-        self.accept_state = accept_state
+        
         self.halted   = False
         self.rejected = False
         self.stage = "A"
 
-        self.__stage_a_quadruples(quintuples)
+        self.__stage_a_quadruples(quintuples)        
+        #self.__stage_c_quadruples()
+
 
     def __str__(self):
         quads_str = "Transições:\n"
@@ -83,6 +102,7 @@ class ReversibleMachine:
 
         return quads_str + self.print_current_configuration()
 
+
     #returna uma string representando o estado atual da máquina e os conteúdos e posição da head de cada fita
     def print_current_configuration(self) -> str:
         current_state_str = f"{CYAN}Estado atual:{RESET} {self.state}\n"
@@ -92,6 +112,7 @@ class ReversibleMachine:
         tapes_str += f"Fita de Cópia:\n{self.copy_tape.contents()}"
 
         return current_state_str + tapes_str
+
 
     #cria quadruples para o estágio A da máquina reversível (computação)
     def __stage_a_quadruples(self, quintuples: List[Quintuple]):
@@ -103,8 +124,7 @@ class ReversibleMachine:
 
             quadruple_1 = Quadruple(
                 input_state=input_state,
-
-                            # main tape             history tape        copy tape
+                #             main tape             history tape        copy tape
                 input_tapes= [quin.input_symbol,    DO_NOT_READ,        BLANK],
                 output_tapes=[quin.output_symbol,   Shift.RIGHT,        BLANK],
 
@@ -113,8 +133,7 @@ class ReversibleMachine:
 
             quadruple_2 = Quadruple(
                 input_state=aux_state,
-                
-                            # main tape             history tape        copy tape
+                # main tape             history tape        copy tape
                 input_tapes= [DO_NOT_READ,          BLANK,              DO_NOT_READ],
                 output_tapes=[quin.shift_direction, f"{aux_state_id}",  Shift.NULL],
 
@@ -131,6 +150,161 @@ class ReversibleMachine:
             aux_state_id +=1
     
     
+    def __stage_b_quadruples(self):
+        output_start, output_end = self.main_tape.span()
+        final_head = self.main_tape.head
+
+        entry_state = f"B_{self.accept_state}_0"
+
+        #se a saida for vazia entra direto no estagio c
+        if output_end < output_start:
+            self.quadruples[entry_state] = [
+                Quadruple(
+                    input_state=entry_state,
+                    input_tapes=[DO_NOT_READ, DO_NOT_READ, DO_NOT_READ],
+                    output_tapes=[Shift.NULL, Shift.NULL, Shift.NULL],
+                    output_state=f"C_{self.accept_state}_0",
+                )
+            ]
+            return
+
+        #leva a cabeca da main ate o inicio da saida
+        current_state = entry_state
+        distance_to_output = output_start - final_head
+
+        if distance_to_output != 0:
+            direction = Shift.RIGHT if distance_to_output > 0 else Shift.LEFT
+
+            for i in range(abs(distance_to_output)):
+                next_state = f"B_seek_{i + 1}"
+
+                self.quadruples[current_state] = [
+                    Quadruple(
+                        input_state=current_state,
+                        input_tapes=[DO_NOT_READ, DO_NOT_READ, DO_NOT_READ],
+                        output_tapes=[direction, Shift.NULL, Shift.NULL],
+                        output_state=next_state,
+                    )
+                ]
+
+                current_state = next_state
+
+        output_size = output_end - output_start + 1
+
+        #primeira passagem copia main para copy
+        for i in range(output_size):
+            copy_state = current_state
+            after_copy_state = f"B_1_prime_{i}"
+
+            copy_quads = []
+
+            for symbol in self.alphabet_tape:
+                copy_quads.append(
+                    Quadruple(
+                        input_state=copy_state,
+                        input_tapes=[symbol, DO_NOT_READ, BLANK],
+                        output_tapes=[symbol, Shift.NULL, symbol],
+                        output_state=after_copy_state,
+                    )
+                )
+
+            self.quadruples[copy_state] = copy_quads
+
+            #move main e copy para a direita
+            if i < output_size - 1:
+                next_state = f"B_1_{i + 1}"
+
+                self.quadruples[after_copy_state] = [
+                    Quadruple(
+                        input_state=after_copy_state,
+                        input_tapes=[DO_NOT_READ, DO_NOT_READ, DO_NOT_READ],
+                        output_tapes=[Shift.RIGHT, Shift.NULL, Shift.RIGHT],
+                        output_state=next_state,
+                    )
+                ]
+
+                current_state = next_state
+            else:
+                current_state = after_copy_state
+
+        #inicia a segunda passagem no ultimo simbolo
+        verify_state = f"B_2_{output_size - 1}"
+
+        self.quadruples[current_state] = [
+            Quadruple(
+                input_state=current_state,
+                input_tapes=[DO_NOT_READ, DO_NOT_READ, DO_NOT_READ],
+                output_tapes=[Shift.NULL, Shift.NULL, Shift.NULL],
+                output_state=verify_state,
+            )
+        ]
+
+        #segunda passagem volta comparando main e copy
+        for i in range(output_size - 1, -1, -1):
+            verify_state = f"B_2_{i}"
+            after_verify_state = f"B_2_prime_{i}"
+
+            verify_quads = []
+
+            for symbol in self.alphabet_tape:
+                verify_quads.append(
+                    Quadruple(
+                        input_state=verify_state,
+                        input_tapes=[symbol, DO_NOT_READ, symbol],
+                        output_tapes=[symbol, Shift.NULL, symbol],
+                        output_state=after_verify_state,
+                    )
+                )
+
+            self.quadruples[verify_state] = verify_quads
+
+            #move main e copy para a esquerda
+            if i > 0:
+                next_state = f"B_2_{i - 1}"
+
+                self.quadruples[after_verify_state] = [
+                    Quadruple(
+                        input_state=after_verify_state,
+                        input_tapes=[DO_NOT_READ, DO_NOT_READ, DO_NOT_READ],
+                        output_tapes=[Shift.LEFT, Shift.NULL, Shift.LEFT],
+                        output_state=next_state,
+                    )
+                ]
+
+                current_state = next_state
+            else:
+                current_state = after_verify_state
+
+        #restaura a cabeca da main para onde o estagio a terminou
+        distance_to_final = final_head - output_start
+
+        if distance_to_final != 0:
+            direction = Shift.RIGHT if distance_to_final > 0 else Shift.LEFT
+
+            for i in range(abs(distance_to_final)):
+                next_state = f"B_restore_{i + 1}"
+
+                self.quadruples[current_state] = [
+                    Quadruple(
+                        input_state=current_state,
+                        input_tapes=[DO_NOT_READ, DO_NOT_READ, DO_NOT_READ],
+                        output_tapes=[direction, Shift.NULL, Shift.NULL],
+                        output_state=next_state,
+                    )
+                ]
+
+                current_state = next_state
+
+        #entra no estagio c com main e history iguais ao final de a
+        self.quadruples[current_state] = [
+            Quadruple(
+                input_state=current_state,
+                input_tapes=[DO_NOT_READ, DO_NOT_READ, DO_NOT_READ],
+                output_tapes=[Shift.NULL, Shift.NULL, Shift.NULL],
+                output_state=f"C_{self.accept_state}_0",
+            )
+        ]
+    
     def reject(self):
         print(f"{RED}REJEITOU no estágio {self.stage}: nenhuma transição definida para o "
                 f"estado '{self.state}' lendo (main={self.main_tape.read()}, "
@@ -146,9 +320,9 @@ class ReversibleMachine:
     def __transition_to_stage_b(self):
         self.stage = "B"
         self.state = f"B_{self.accept_state}_0"
-        print(f"{GREEN}estagio A concluido. mudando para o estagio B. estado inicial: {self.state}){RESET}")
-        print(self.print_current_configuration())
-        
+        print(f"{YELLOW}mudando para o estagio B{RESET}")
+        self.__stage_b_quadruples()
+
 
     def step(self):
         if self.halted:
@@ -169,27 +343,54 @@ class ReversibleMachine:
 
         self.__apply_transition(quad)
 
+        #muda para o estagio C
+        if self.stage == "B" and self.state.startswith("C_"):
+            #self.__transition_to_stage_c()
+            print("mudando para o estagio C")
+
         print(self.print_current_configuration())
+
+        #if self.__is_stage_c_finished():
+            #self.__finish_successfully()
         
 
     #encontra a quadrupla cujo padrao de leitura bate com o estado e fitas atuais
     def __find_transition(self) -> Optional[Quadruple]:
+        tapes = (self.main_tape, self.history_tape, self.copy_tape)
+        
         for q in self.quadruples.get(self.state, []):
-            if all(t_in == DO_NOT_READ or t_in == tape.read() for t_in, tape in zip(q.input_tapes, (self.main_tape,self.history_tape,self.copy_tape))):
+            matches = True
+            
+            for t_in, tape in zip(q.input_tapes, tapes):
+                if t_in == DO_NOT_READ:
+                    continue
+                
+                if t_in == BOUNDARY:
+                    if not tape.at_boundary:
+                        matches = False
+                        break
+                    continue
+
+                if t_in != tape.read():
+                    matches = False
+                    break
+
+            if matches:
                 return q
+            
         return None
+
 
     #aplica uma quadrupla encontrada sobre as fitas e move a máquina para o novo estado
     #leitura/escrita OU shift | nunca ambos na mesma fita
     def __apply_transition(self, quadruple: Quadruple) -> str:
         for t_in, t_out, tape in zip(quadruple.input_tapes, quadruple.output_tapes, (self.main_tape,self.history_tape,self.copy_tape)):
-            if t_in == DO_NOT_READ:
+            if isinstance(t_out, Shift):
                 tape.move(t_out)
             else:
                 tape.write(t_out)
         self.state = quadruple.output_state
         return
-        
 
 
 def invert_shift(shift: Shift) -> Shift:
@@ -198,6 +399,7 @@ def invert_shift(shift: Shift) -> Shift:
     if shift == Shift.LEFT:
         return Shift.RIGHT
     return Shift.NULL
+
 
 def invert_quadruple(quad: Quadruple, rename=lambda s: s) -> Quadruple:
     new_in, new_out = [], []
@@ -215,6 +417,7 @@ def invert_quadruple(quad: Quadruple, rename=lambda s: s) -> Quadruple:
         output_tapes=new_out,
         output_state=rename(quad.input_state),
     )
+    
 
 #
 def run(initial_state: str, tapes: List[Tape], quadruples: List[Quadruple], max_steps: int = 100_000) -> Tuple[str, int]: 
