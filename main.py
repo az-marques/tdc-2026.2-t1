@@ -15,6 +15,7 @@ rm = ReversibleMachine(
     initial_state=parsed_info["initial_state"],
     accept_state=parsed_info["accept_state"],
     input_string=parsed_info["input_string"],
+    alphabet_tape=parsed_info["alphabet_tape"]
 )
 
 print(rm.print_current_configuration())

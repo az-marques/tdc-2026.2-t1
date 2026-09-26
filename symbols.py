@@ -18,3 +18,6 @@ DO_NOT_READ = "/"
 
 #constante que guarda o símbolo que representa um espaço vazio em uma fita
 BLANK = "B"
+
+#indica que a cabeca esta na borda da fita
+BOUNDARY = object()

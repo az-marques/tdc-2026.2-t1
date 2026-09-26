@@ -1,14 +1,13 @@
 import re
-from quintuple import Quintuple
 from typing import List
+from quintuple import Quintuple
 from symbols import *
 
-#recebendo um arquivo plaintext definindo uma máquina de turing, interpreta o arquvio e retorna um dicionário com as informações da máquina
+#recebe um arquivo plaintext definindo uma maquina de Turing, interpreta o arquivo e retorna um dicionario com as infos da maquina
 def parse(filepath) -> dict:
     quintuples = []
     
     with open(filepath, 'r', encoding='utf-8') as file:
-        
         lines = [line.strip() for line in file if line.strip()]
         
         #linha 1: num_states | num_sym_in | num_sym_tape | num_transitions
@@ -24,24 +23,32 @@ def parse(filepath) -> dict:
         #linha 3: alfabeto de entrada
         alphabet_in = lines[2].split()
         
-        #linha 4: alfabeto de fita
+        #linha 4: alfabeto da fita
         alphabet_tape = lines[3].split()
         
         #estados finais e iniciais
         initial_state = states[0]  if states else None 
         accept_state  = states[-1] if states else None 
         
-        #transicoes
+        #regex para extrair os componentes de cada transicao no formato (q_in, s_in)=(q_out, s_out, dir)
+        pattern = re.compile(r"^\((\S+),(\S+)\)=\((\S+),(\S+),(\S+)\)$")
+
+        #transicoes (linha 4 a 4 + num_transitions)
         transition_lines = lines[4 : 4 + num_transitions]
         for line in transition_lines:
-            parts = re.split(r"[(,)=]", line)
+            match = pattern.match(line)
+            if not match:
+                raise ValueError(f"sintaxe invalida na linha: '{line}'")
+            
+            q_in, s_in, q_out, s_out, shift = match.groups()
+            
             quintuples.append(
                 Quintuple(
-                    input_state=parts[1],
-                    input_symbol=parts[2],
-                    output_state=parts[5],
-                    output_symbol=parts[6],
-                    shift_direction=Shift(parts[7]),
+                    input_state=q_in,
+                    input_symbol=s_in,
+                    output_state=q_out,
+                    output_symbol=s_out,
+                    shift_direction=Shift(shift),
                 )
             )
 
@@ -65,10 +72,11 @@ def parse(filepath) -> dict:
         
         return parsed
 
+
 def print_parsed_machine(parsed: dict):
     print("informacoes parseadas do arquivo")
     
-    #dados de configuracao
+    #dados de configuração
     print(f"numero de estados:      {parsed['num_states']}")
     print(f"simbolos de entrada:    {parsed['num_sym_in']}")
     print(f"simbolos da fita:       {parsed['num_sym_tape']}")
@@ -78,9 +86,8 @@ def print_parsed_machine(parsed: dict):
     print(f"alfabeto da fita:       {parsed['alphabet_tape']}")
     print(f"estado inicial:         {parsed['initial_state']}")
     print(f"estado de aceitação:    {parsed['accept_state']}")
-    print(f"cadeia de entrada:     '{parsed['input_string']}'")
+    print(f"cadeia de entrada:      '{parsed['input_string']}'")
     
-
     print("\nquintuplas lidas")
     for idx, q in enumerate(parsed['quintuples'], start=1):
         print(f"  {idx:02d}. δ({q.input_state}, {q.input_symbol}) = ({q.output_state}, {q.output_symbol}, {q.shift_direction})")
