@@ -85,7 +85,7 @@ class ReversibleMachine:
         self.stage = "A"
 
         self.__stage_a_quadruples(quintuples)        
-        #self.__stage_c_quadruples()
+        self.__stage_c_quadruples()
 
 
     def __str__(self):
@@ -149,7 +149,7 @@ class ReversibleMachine:
 
             aux_state_id +=1
     
-    
+    #cria quadruples para o estágio B da máquina reversível (cópia)
     def __stage_b_quadruples(self):
         output_start, output_end = self.main_tape.span()
         final_head = self.main_tape.head
@@ -188,7 +188,19 @@ class ReversibleMachine:
                 ]
 
                 current_state = next_state
-
+             
+        #a fita de copia comeca com a cabeca sobre um branco imediatamente antes da saida
+        copy_begin_state = "B_copy_begin"
+        self.quadruples[current_state] = [
+            Quadruple(
+                input_state=current_state,
+                input_tapes=[DO_NOT_READ, DO_NOT_READ, DO_NOT_READ],
+                output_tapes=[Shift.NULL, Shift.NULL, Shift.RIGHT],
+                output_state=copy_begin_state,
+            )
+        ]
+        current_state = copy_begin_state
+     
         output_size = output_end - output_start + 1
 
         #primeira passagem copia main para copy
@@ -274,7 +286,19 @@ class ReversibleMachine:
                 current_state = next_state
             else:
                 current_state = after_verify_state
-
+             
+        #a cabeca da copy volta ao branco onde estava antes do estágio B
+        copy_restore_state = "B_copy_restore"
+        self.quadruples[current_state] = [
+            Quadruple(
+                input_state=current_state,
+                input_tapes=[DO_NOT_READ, DO_NOT_READ, DO_NOT_READ],
+                output_tapes=[Shift.NULL, Shift.NULL, Shift.LEFT],
+                output_state=copy_restore_state,
+            )
+        ]
+        current_state = copy_restore_state
+     
         #restaura a cabeca da main para onde o estagio a terminou
         distance_to_final = final_head - output_start
 
@@ -304,6 +328,28 @@ class ReversibleMachine:
                 output_state=f"C_{self.accept_state}_0",
             )
         ]
+     
+    #cria as quadruplas do estágio C invertendo as transições do estágio A (restauração)
+    def __stage_c_quadruples(self):
+        stage_a_quadruples = []
+
+        for quad_list in self.quadruples.values():
+            for quad in quad_list:
+                if quad.input_state.startswith("A_"):
+                    stage_a_quadruples.append(quad)
+
+        def rename_state(state: str) -> str:
+            if state.startswith("A_"):
+                return "C_" + state[2:]
+            return state
+
+        for quad in stage_a_quadruples:
+            inverse = invert_quadruple(quad, rename=rename_state)
+
+            if inverse.input_state not in self.quadruples:
+                self.quadruples[inverse.input_state] = [inverse]
+            else:
+                self.quadruples[inverse.input_state].append(inverse)
     
     def reject(self):
         print(f"{RED}REJEITOU no estágio {self.stage}: nenhuma transição definida para o "
@@ -322,7 +368,21 @@ class ReversibleMachine:
         self.state = f"B_{self.accept_state}_0"
         print(f"{YELLOW}mudando para o estagio B{RESET}")
         self.__stage_b_quadruples()
+     
+    def __transition_to_stage_c(self):
+        self.stage = "C"
+        print(f"{YELLOW}mudando para o estagio C{RESET}")
 
+    def __is_stage_c_finished(self) -> bool:
+        return (
+            self.state == f"C_{self.initial_state}_0"
+            and self.history_tape.head == 0
+            and self.history_tape.read() == BLANK
+        )
+     
+    def __finish_successfully(self):
+        self.halted = True
+        print(f"{GREEN}reversao concluida com sucesso{RESET}")
 
     def step(self):
         if self.halted:
@@ -343,15 +403,13 @@ class ReversibleMachine:
 
         self.__apply_transition(quad)
 
-        #muda para o estagio C
         if self.stage == "B" and self.state.startswith("C_"):
-            #self.__transition_to_stage_c()
-            print("mudando para o estagio C")
+            self.__transition_to_stage_c()
 
         print(self.print_current_configuration())
 
-        #if self.__is_stage_c_finished():
-            #self.__finish_successfully()
+        if self.stage == "C" and self.__is_stage_c_finished():
+            self.__finish_successfully()
         
 
     #encontra a quadrupla cujo padrao de leitura bate com o estado e fitas atuais
