@@ -476,17 +476,3 @@ def invert_quadruple(quad: Quadruple, rename=lambda s: s) -> Quadruple:
         output_state=rename(quad.input_state),
     )
     
-
-#
-def run(initial_state: str, tapes: List[Tape], quadruples: List[Quadruple], max_steps: int = 100_000) -> Tuple[str, int]: 
-    idx_quadruples = index_quadruples(quadruples)
-    state = initial_state
-    steps = 0
-    
-    while steps < max_steps:
-        new_state = step(state, tapes, idx_quadruples)
-        if new_state is None:
-            break #maquina parou
-        state = new_state
-        steps += 1
-    return state, steps
